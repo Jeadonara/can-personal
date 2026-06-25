@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Egypt Friend Trip – Route Options</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #f5f0e8; color: #2c2c2c; }
+
+    header {
+      background: #1a3a2a;
+      color: #f5e6c8;
+      padding: 20px 32px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    header h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: 0.5px; }
+    header p { font-size: 0.88rem; opacity: 0.8; margin-top: 3px; }
+    .header-icon { font-size: 2.2rem; }
+
+    .container { max-width: 1100px; margin: 0 auto; padding: 28px 20px 48px; }
+
+    #map {
+      width: 100%;
+      height: 520px;
+      border-radius: 12px;
+      border: 2px solid #c8b88a;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+      margin-bottom: 28px;
+    }
+
+    /* ── option toggle buttons ── */
+    .toggle-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+    .toggle-btn {
+      padding: 6px 14px;
+      border-radius: 20px;
+      border: 2px solid transparent;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      opacity: 0.4;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+    .toggle-btn.active { opacity: 1; }
+    .toggle-btn:hover { transform: scale(1.04); }
+
+    /* ── summary cards ── */
+    h2 { font-size: 1.15rem; font-weight: 700; color: #1a3a2a; margin-bottom: 14px; }
+
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 16px 18px;
+      border-left: 5px solid #ccc;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+    }
+    .card h3 { font-size: 0.95rem; font-weight: 700; margin-bottom: 8px; }
+    .card .meta { font-size: 0.78rem; color: #666; margin-bottom: 10px; }
+    .route-steps { list-style: none; padding: 0; }
+    .route-steps li {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 0.82rem;
+      padding: 4px 0;
+      border-bottom: 1px solid #f0f0f0;
+      line-height: 1.4;
+    }
+    .route-steps li:last-child { border-bottom: none; }
+    .transport-icon {
+      font-size: 1rem;
+      min-width: 20px;
+      text-align: center;
+      margin-top: 1px;
+    }
+    .city-name { font-weight: 600; }
+    .transport-label {
+      font-size: 0.75rem;
+      color: #888;
+      font-style: italic;
+    }
+
+    footer {
+      text-align: center;
+      font-size: 0.78rem;
+      color: #999;
+      margin-top: 40px;
+    }
+
+    .step-badge {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: 800;
+      color: #fff;
+      border: 2px solid rgba(255,255,255,0.9);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+      cursor: default;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <span class="header-icon">🏺</span>
+  <div>
+    <h1>Egypt Friend Trip – Route Options</h1>
+    <p>Sep 24 – Oct 4, 2026 &nbsp;·&nbsp; Wedding of Yasmin &amp; Talaat &nbsp;·&nbsp; 6 options compared</p>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Toggle buttons -->
+  <div class="toggle-bar" id="toggleBar"></div>
+
+  <!-- Map -->
+  <div id="map"></div>
+
+  <!-- Cards -->
+  <h2>Route Summary — Cities &amp; Transport</h2>
+  <div class="cards" id="cards"></div>
+
+  <footer>All plans share: Cairo arrival (Sep 24) · Wedding Heliopolis (Sep 25) · Giza + GEM (Sep 26) · Khan el-Khalili + Outing (Sep 27) · Cairo Airport Hotel (Oct 3) · Fly home (Oct 4)</footer>
+</div>
+
+<script>
+// ──────────────────────────────────────────────────────────────
+// City coordinates
+// ──────────────────────────────────────────────────────────────
+const CITIES = {
+  amsterdam:    { name: "Amsterdam",          lat: 52.37,  lng: 4.90  },
+  cairo:        { name: "Cairo / Heliopolis", lat: 30.10,  lng: 31.36 },
+  giza:         { name: "Giza (Pyramids)",    lat: 29.97,  lng: 31.13 },
+  aswan:        { name: "Aswan",              lat: 24.09,  lng: 32.90 },
+  komOmbo:      { name: "Kom Ombo",           lat: 24.45,  lng: 32.95 },
+  edfu:         { name: "Edfu",               lat: 24.98,  lng: 32.87 },
+  luxor:        { name: "Luxor",              lat: 25.69,  lng: 32.64 },
+  sharm:        { name: "Sharm el-Sheikh",    lat: 27.91,  lng: 34.33 },
+  dahab:        { name: "Dahab",              lat: 28.50,  lng: 34.52 },
+  fayoum:       { name: "Fayoum Oasis",       lat: 29.31,  lng: 30.85 },
+  stCatherine:  { name: "St. Catherine",      lat: 28.56,  lng: 33.95 },
+  nuweiba:      { name: "Nuweiba",            lat: 29.02,  lng: 34.65 },
+  siwa:         { name: "Siwa Oasis",         lat: 29.20,  lng: 25.52 },
+};
+
+// ──────────────────────────────────────────────────────────────
+// Option definitions
+// ──────────────────────────────────────────────────────────────
+const OPTIONS = [
+  {
+    id: "planA",
+    label: "Plan A – Nile Cruise",
+    color: "#e63946",
+    transport: "✈ Flights + 🛳 Cruise",
+    meta: "Flights + Nile Cruise · ~€1,120/person",
+    route: [
+      { city: "cairo",     icon: "✈", label: "Arrive from Amsterdam" },
+      { city: "giza",      icon: "🚐", label: "Private van (Sep 26)" },
+      { city: "cairo",     icon: "✈", label: "Fly Cairo → Aswan (Sep 27 night)" },
+      { city: "aswan",     icon: "🛳", label: "Board Nile Cruise (Sep 28)" },
+      { city: "komOmbo",   icon: "🛳", label: "Cruise stop" },
+      { city: "edfu",      icon: "🛳", label: "Cruise stop" },
+      { city: "luxor",     icon: "✈", label: "Fly Luxor → Cairo → Sharm (Oct 1)" },
+      { city: "sharm",     icon: "🚐", label: "Private van" },
+      { city: "dahab",     icon: "✈", label: "Fly Sharm → Cairo (Oct 3)" },
+      { city: "cairo",     icon: "✈", label: "Fly home (Oct 4)" },
+    ],
+    polyline: ["cairo","giza","cairo","aswan","komOmbo","edfu","luxor","sharm","dahab","sharm","cairo"]
+  },
+  {
+    id: "planB",
+    label: "Plan B – Land Only",
+    color: "#f4a261",
+    transport: "✈ Flights + 🚌 Private Bus",
+    meta: "Flights + Private Bus · ~€1,120/person",
+    route: [
+      { city: "cairo",     icon: "✈", label: "Arrive from Amsterdam" },
+      { city: "giza",      icon: "🚐", label: "Private van (Sep 26)" },
+      { city: "cairo",     icon: "✈", label: "Fly Cairo → Aswan (Sep 27 night)" },
+      { city: "aswan",     icon: "🚌", label: "Private bus north (Sep 29)" },
+      { city: "komOmbo",   icon: "🚌", label: "Bus stop en route" },
+      { city: "edfu",      icon: "🚌", label: "Bus stop en route" },
+      { city: "luxor",     icon: "✈", label: "Fly Luxor → Cairo → Sharm (Oct 1)" },
+      { city: "sharm",     icon: "🚐", label: "Private van" },
+      { city: "dahab",     icon: "✈", label: "Fly Sharm → Cairo (Oct 3)" },
+      { city: "cairo",     icon: "✈", label: "Fly home (Oct 4)" },
+    ],
+    polyline: ["cairo","giza","cairo","aswan","komOmbo","edfu","luxor","sharm","dahab","sharm","cairo"]
+  },
+  {
+    id: "opt1",
+    label: "Option 1 – Luxor & Dahab",
+    color: "#2a9d8f",
+    transport: "✈ Flights + 🚐 Vans",
+    meta: "Flight-heavy · €2,300–€3,400/person",
+    route: [
+      { city: "cairo",   icon: "✈", label: "Arrive from Amsterdam" },
+      { city: "giza",    icon: "🚐", label: "Private van (Sep 26)" },
+      { city: "cairo",   icon: "✈", label: "Fly Cairo → Luxor (Sep 27 night)" },
+      { city: "luxor",   icon: "✈", label: "Fly Luxor → Cairo → Sharm (Oct 1)" },
+      { city: "sharm",   icon: "🚐", label: "Private van" },
+      { city: "dahab",   icon: "✈", label: "Fly Sharm → Cairo (Oct 3)" },
+      { city: "cairo",   icon: "✈", label: "Fly home (Oct 4)" },
+    ],
+    polyline: ["cairo","giza","cairo","luxor","sharm","dahab","sharm","cairo"]
+  },
+  {
+    id: "opt2",
+    label: "Option 2 – Fayoum & Dahab",
+    color: "#457b9d",
+    transport: "✈ Int'l Flights + 🚌 Minibus",
+    meta: "100% Minibus after Cairo · €1,554–€2,444/person",
+    route: [
+      { city: "cairo",   icon: "✈",  label: "Arrive from Amsterdam" },
+      { city: "giza",    icon: "🚐",  label: "Private van (Sep 26)" },
+      { city: "cairo",   icon: "🚌",  label: "Midnight minibus (Sep 27)" },
+      { city: "fayoum",  icon: "🚌",  label: "Fayoum Oasis (Sep 28–29)" },
+      { city: "dahab",   icon: "🚌",  label: "Minibus via Suez Canal (Sep 30, 7.5h)" },
+      { city: "cairo",   icon: "🚌",  label: "Minibus return (Oct 3, 6h)" },
+      { city: "cairo",   icon: "✈",  label: "Fly home (Oct 4)" },
+    ],
+    polyline: ["cairo","giza","cairo","fayoum","dahab","cairo"]
+  },
+  {
+    id: "opt3",
+    label: "Option 3 – Sinai & Nuweiba",
+    color: "#8338ec",
+    transport: "✈ Int'l Flights + 🚌 Minibus",
+    meta: "100% Minibus after Cairo · €1,373–€2,113/person",
+    route: [
+      { city: "cairo",       icon: "✈", label: "Arrive from Amsterdam" },
+      { city: "giza",        icon: "🚐", label: "Private van (Sep 26)" },
+      { city: "cairo",       icon: "🚌", label: "Overnight minibus (Sep 27, 5.5h)" },
+      { city: "stCatherine", icon: "🚌", label: "St. Catherine Monastery (Sep 28)" },
+      { city: "nuweiba",     icon: "🚌", label: "Drive to coast (Sep 29, 2h)" },
+      { city: "cairo",       icon: "🚌", label: "Minibus return (Oct 3, 6.5h)" },
+      { city: "cairo",       icon: "✈", label: "Fly home (Oct 4)" },
+    ],
+    polyline: ["cairo","giza","cairo","stCatherine","nuweiba","cairo"]
+  },
+  {
+    id: "opt4",
+    label: "Option 4 – Siwa Oasis",
+    color: "#c77dff",
+    transport: "✈ Int'l Flights + 🚌 Minibus",
+    meta: "100% Minibus after Cairo · €1,820–€2,650/person",
+    route: [
+      { city: "cairo", icon: "✈", label: "Arrive from Amsterdam" },
+      { city: "giza",  icon: "🚐", label: "Private van (Sep 26)" },
+      { city: "cairo", icon: "🚌", label: "Rest in Cairo (Sep 27)" },
+      { city: "siwa",  icon: "🚌", label: "Minibus to Siwa (Sep 28, 8.5h)" },
+      { city: "cairo", icon: "🚌", label: "Minibus return (Oct 3, 8.5h)" },
+      { city: "cairo", icon: "✈", label: "Fly home (Oct 4)" },
+    ],
+    polyline: ["cairo","giza","cairo","siwa","cairo"]
+  },
+];
+
+// ──────────────────────────────────────────────────────────────
+// Leaflet map
+// ──────────────────────────────────────────────────────────────
+const map = L.map('map').setView([28.5, 30.5], 5);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+  attribution: '© OpenStreetMap contributors, © CARTO',
+  maxZoom: 13
+}).addTo(map);
+
+// City markers (shared across all options)
+const cityMarkers = {};
+Object.entries(CITIES).forEach(([key, city]) => {
+  if (key === 'amsterdam') return; // skip, not on Egypt map
+  const marker = L.circleMarker([city.lat, city.lng], {
+    radius: 7,
+    fillColor: '#1a3a2a',
+    color: '#fff',
+    weight: 2,
+    fillOpacity: 0.9,
+  }).addTo(map).bindTooltip(`<strong>${city.name}</strong>`, { permanent: false, direction: 'top' });
+  cityMarkers[key] = marker;
+});
+
+// Polylines + numbered segment markers per option
+const polylines = {};
+const stepMarkers = {}; // { optId: [L.Marker, ...] }
+
+function midpoint(a, b) {
+  return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+}
+
+OPTIONS.forEach(opt => {
+  const coords = opt.polyline.map(k => [CITIES[k].lat, CITIES[k].lng]);
+  const pl = L.polyline(coords, {
+    color: opt.color,
+    weight: 4,
+    opacity: 0.85,
+    dashArray: opt.transport.includes('🛳') ? null : '8,5',
+    lineJoin: 'round'
+  });
+  polylines[opt.id] = pl;
+
+  // One numbered badge per segment (midpoint of each consecutive pair)
+  const markers = [];
+  for (let i = 0; i < coords.length - 1; i++) {
+    const mid = midpoint(coords[i], coords[i + 1]);
+    const icon = L.divIcon({
+      className: '',
+      html: `<div class="step-badge" style="background:${opt.color}">${i + 1}</div>`,
+      iconSize: [22, 22],
+      iconAnchor: [11, 11],
+    });
+    const m = L.marker(mid, { icon, interactive: false });
+    markers.push(m);
+  }
+  stepMarkers[opt.id] = markers;
+});
+
+// Track active options
+const activeOptions = new Set(OPTIONS.map(o => o.id));
+
+function refreshMap() {
+  OPTIONS.forEach(opt => {
+    if (activeOptions.has(opt.id)) {
+      if (!map.hasLayer(polylines[opt.id])) map.addLayer(polylines[opt.id]);
+      stepMarkers[opt.id].forEach(m => { if (!map.hasLayer(m)) m.addTo(map); });
+    } else {
+      if (map.hasLayer(polylines[opt.id])) map.removeLayer(polylines[opt.id]);
+      stepMarkers[opt.id].forEach(m => { if (map.hasLayer(m)) map.removeLayer(m); });
+    }
+  });
+}
+refreshMap();
+
+// ──────────────────────────────────────────────────────────────
+// Toggle buttons
+// ──────────────────────────────────────────────────────────────
+const toggleBar = document.getElementById('toggleBar');
+OPTIONS.forEach(opt => {
+  const btn = document.createElement('button');
+  btn.className = 'toggle-btn active';
+  btn.textContent = opt.label;
+  btn.style.backgroundColor = opt.color + '22';
+  btn.style.borderColor = opt.color;
+  btn.style.color = opt.color;
+  btn.addEventListener('click', () => {
+    if (activeOptions.has(opt.id)) {
+      activeOptions.delete(opt.id);
+      btn.classList.remove('active');
+    } else {
+      activeOptions.add(opt.id);
+      btn.classList.add('active');
+    }
+    refreshMap();
+  });
+  toggleBar.appendChild(btn);
+});
+
+// ──────────────────────────────────────────────────────────────
+// Summary cards
+// ──────────────────────────────────────────────────────────────
+const cardsEl = document.getElementById('cards');
+OPTIONS.forEach(opt => {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.style.borderLeftColor = opt.color;
+
+  const stepsHtml = opt.route.map(step => {
+    const city = CITIES[step.city];
+    return `<li>
+      <span class="transport-icon">${step.icon}</span>
+      <div>
+        <span class="city-name">${city.name}</span>
+        <br/><span class="transport-label">${step.label}</span>
+      </div>
+    </li>`;
+  }).join('');
+
+  card.innerHTML = `
+    <h3 style="color:${opt.color}">${opt.label}</h3>
+    <div class="meta">${opt.meta}<br/>${opt.transport}</div>
+    <ul class="route-steps">${stepsHtml}</ul>
+  `;
+  cardsEl.appendChild(card);
+});
+</script>
+</body>
+</html>
